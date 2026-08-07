@@ -148,9 +148,8 @@ chmod +x /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh
 # ---------------------------------------------------------------------------
 cat > "${NGINX_SITE}" <<EOF
 server {
-    listen 443 ssl;
-    listen [::]:443 ssl;
-    http2 on;
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
     server_name ${DOMAIN};
 
     root ${WEBROOT};
