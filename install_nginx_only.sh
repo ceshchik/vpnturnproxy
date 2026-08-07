@@ -4,16 +4,16 @@
 #
 # Скрипт НЕ устанавливает и не настраивает Xray — только nginx.
 # Вы сами поднимаете Xray с любым inbound (VLESS/XHTTP), который слушает
-# локальный TCP-порт, выведенный в конце этого скрипта.
+# unix-сокет /dev/shm/xrxh.socket (права 0666), выведенный в конце скрипта.
 #
 # Что делает скрипт:
 #   1. Ставит nginx, certbot
 #   2. Разворачивает статическую "CDN"-заглушку на 80/443
 #   3. Получает Let's Encrypt сертификат (webroot-метод)
 #   4. Спрашивает у вас секретный path
-#   5. Пишет nginx-конфиг: "/" -> заглушка, path -> grpc_pass на 127.0.0.1:<порт>
-#   6. Печатает домен, path и порт, который нужно указать в "listen" вашего
-#      Xray-инбаунда (например "127.0.0.1:PORT")
+#   5. Пишет nginx-конфиг: "/" -> заглушка, path -> grpc_pass unix:/dev/shm/xrxh.socket
+#   6. Печатает домен, path и путь к сокету, который нужно указать в "listen"
+#      вашего Xray-инбаунда (например "/dev/shm/xrxh.socket,0666")
 #
 # Запускать от root на чистом Ubuntu/Debian.
 
@@ -41,9 +41,10 @@ XPATH="${XPATH_INPUT}"
 [[ "${XPATH}" != /* ]] && XPATH="/${XPATH}"
 [[ "${XPATH}" != */ ]] && XPATH="${XPATH}/"
 
-# Локальный порт, на который nginx будет проксировать xhttp (вы указываете
-# его же в "listen" своего Xray-инбаунда, например "127.0.0.1:PORT")
-XHTTP_PORT=$(( (RANDOM % 20000) + 20000 ))
+# Unix-сокет, на который nginx будет проксировать xhttp. Тот же путь и права
+# (,0666) нужно указать в "listen" вашего Xray-инбаунда:
+# "listen": "/dev/shm/xrxh.socket,0666"
+SOCK="/dev/shm/xrxh.socket"
 
 WEBROOT="/var/www/${DOMAIN}"
 NGINX_SITE="/etc/nginx/sites-available/${DOMAIN}.conf"
@@ -53,7 +54,7 @@ echo
 echo "== Параметры =="
 echo "Домен:       ${DOMAIN}"
 echo "Path:        ${XPATH}"
-echo "XHTTP порт:  127.0.0.1:${XHTTP_PORT}"
+echo "Unix-сокет:  ${SOCK} (права 0666)"
 echo
 
 # ---------------------------------------------------------------------------
@@ -165,15 +166,14 @@ server {
     client_header_timeout 5m;
     keepalive_timeout 5m;
 
-    # Секретный путь XHTTP -> локальный порт вашего Xray-инбаунда
+    # Секретный путь XHTTP -> unix-сокет вашего Xray-инбаунда
     location ${XPATH} {
         client_max_body_size 0;
+        grpc_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         client_body_timeout 5m;
         grpc_read_timeout 315;
         grpc_send_timeout 5m;
-        grpc_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        grpc_set_header Host \$host;
-        grpc_pass grpc://127.0.0.1:${XHTTP_PORT};
+        grpc_pass unix:${SOCK};
     }
 
     # Скрытые/служебные файлы — не отдавать
@@ -228,7 +228,6 @@ echo "Path:              ${XPATH}"
 echo "Nginx site:        ${NGINX_SITE}"
 echo
 echo "В inbound вашего Xray укажите:"
-echo "  \"listen\": \"127.0.0.1\","
-echo "  \"port\": ${XHTTP_PORT},"
+echo "  \"listen\": \"${SOCK},0666\","
 echo "  streamSettings.xhttpSettings.path = \"${XPATH}\""
 echo "======================================================================"
