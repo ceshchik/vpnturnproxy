@@ -911,7 +911,7 @@ server {
 
     # Секретный путь XHTTP -> локальный порт вашего Xray-инбаунда
     location ${XPATH} {
-        proxy_pass http://127.0.0.1:${XRAY_BACKEND};
+        proxy_pass http://{XRAY_BACKEND};
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
