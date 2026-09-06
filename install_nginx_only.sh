@@ -911,13 +911,19 @@ server {
 
     # Секретный путь XHTTP -> локальный порт вашего Xray-инбаунда
     location ${XPATH} {
-        proxy_pass http://${XRAY_BACKEND};
-        proxy_http_version 1.1;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_read_timeout 315s;
-        proxy_send_timeout 5m;
+        # proxy_pass http://${XRAY_BACKEND};
+        # proxy_http_version 1.1;
+        # proxy_set_header Host \$host;
+        # proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        # proxy_set_header X-Real-IP \$remote_addr;
+        # proxy_read_timeout 315s;
+        # proxy_send_timeout 5m;
+        # client_body_timeout 5m;
+        # client_max_body_size 0;
+        grpc_pass grpc://${XRAY_BACKEND};
+        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        grpc_read_timeout 315s;
+        grpc_send_timeout 5m;
         client_body_timeout 5m;
         client_max_body_size 0;
     }
