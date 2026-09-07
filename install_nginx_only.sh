@@ -921,7 +921,7 @@ server {
         # client_body_timeout 5m;
         # client_max_body_size 0;
         grpc_pass grpc://${XRAY_BACKEND};
-        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        grpc_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         grpc_read_timeout 315s;
         grpc_send_timeout 5m;
         client_body_timeout 5m;
