@@ -144,6 +144,8 @@ EOF
     log "Скачивание quick_link.py"
     curl -L -o "${VKT_DIR}/quick_link.py" \
         "https://raw.githubusercontent.com/anton48/vk-turn-proxy-ios/main/quick_link.py"
+    # Очищаем плейсхолдер vkLink
+    sed -i -E 's|("vkLink"[[:space:]]*:[[:space:]]*")[^"]*(")|\1\2|' "${VKT_DIR}/quick_link.py"
 
     cat <<EOF
 
@@ -194,24 +196,32 @@ cmd_add_client() {
     cd "$VKT_DIR"
 
     log "Заполнение CONFIG в quick_link.py"
-    # Заменяем значения по имени ключа (что бы там ни стояло — REPLACE_ME
-    # или прошлый вызов), удаляем строку presharedKey целиком (не обязательна).
     sed -i -E "s|(\"peerAddress\"[[:space:]]*:[[:space:]]*\")[^\"]*(\")|\1${PUBIP}:${VKT_PORT}\2|" quick_link.py
     sed -i -E "s|(\"peerPublicKey\"[[:space:]]*:[[:space:]]*\")[^\"]*(\")|\1${SERVER_PUB}\2|" quick_link.py
     sed -i -E "s|(\"privateKey\"[[:space:]]*:[[:space:]]*\")[^\"]*(\")|\1${DUMMY_PRIV}\2|" quick_link.py
     sed -i -E '/"presharedKey"[[:space:]]*:[[:space:]]*"[^"]*",?/d' quick_link.py
 
-    # Заполняем vkLink только если ссылка была передана пользователем
+    local DEFAULT_VK_LINK="https://vk.me/join/placeholder"
+    local ACTUAL_VK_LINK="${VK_LINK:-$DEFAULT_VK_LINK}"
+
     if [ -n "$VK_LINK" ]; then
-        sed -i -E "s|(\"vkLink\"[[:space:]]*:[[:space:]]*\")[^\"]*(\")|\1${VK_LINK}\2|" quick_link.py
+        echo "Используется переданная ссылка на VK-звонок."
     else
-        echo "Ссылка на VK-звонок не указана — поле vkLink в quick_link.py не изменяется."
+        echo "Ссылка на VK-звонок не указана — используется временная заглушка для генерации."
     fi
+
+    # Подставляем ссылку на звонок на время генерации (с экранированием спецсимволов)
+    local VK_LINK_ESC="${ACTUAL_VK_LINK//&/\\&}"
+    VK_LINK_ESC="${VK_LINK_ESC//|/\\|}"
+    sed -i -E "s|(\"vkLink\"[[:space:]]*:[[:space:]]*\")[^\"]*(\")|\1${VK_LINK_ESC}\2|" quick_link.py
 
     log "Генерация ключей клиента (192.168.200.${SUFFIX}/24)"
     OUTPUT=$(python3 quick_link.py -gen-peer-key "192.168.200.${SUFFIX}/24")
-    echo "$OUTPUT"
 
+    # Сразу после генерации очищаем ссылку в quick_link.py
+    sed -i -E 's|("vkLink"[[:space:]]*:[[:space:]]*")[^"]*(")|\1\2|' quick_link.py
+
+    echo "$OUTPUT"
     echo "$OUTPUT" | awk '/^\[Peer\]/{flag=1} flag' >> "$WG_CONF"
 
     log "Применение конфига без разрыва туннеля"
@@ -224,6 +234,23 @@ cmd_add_client() {
 
 Ссылка vkturnproxy://import?data=... выше — открой её на iPhone
 (или Settings → Import from connection link в приложении).
+EOF
+
+    if [ -z "$VK_LINK" ]; then
+        cat <<EOF
+
+Примечание: Ссылка на VK-звонок не была указана при генерации.
+Ссылка в quick_link.py очищена. При необходимости укажи актуальную ссылку
+прямо в приложении на iPhone (Settings → VK Link).
+EOF
+    else
+        cat <<EOF
+
+Ссылка на звонок в quick_link.py очищена после генерации.
+EOF
+    fi
+
+    cat <<EOF
 ====================================================================
 EOF
 }
